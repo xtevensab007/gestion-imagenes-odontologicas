@@ -42,7 +42,7 @@ const [mensajeRecuperacion, setMensajeRecuperacion] = useState("");
   setLoading(true);
 
   try {
-   {/*} await solicitarRecuperacionPassword(email.trim());*/}
+   
     console.log("Correo solicitado:", email.trim());
 
 const resultado = await solicitarRecuperacionPassword(email.trim());
@@ -89,9 +89,20 @@ console.log("Resultado de recuperación:", resultado);
             margin: "0 auto 28px",
             boxShadow: "0 12px 40px rgba(59,130,246,0.4)",
           }}>
-            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round">
-              <path d="M12 2a3 3 0 0 0-3 3v7H6a3 3 0 0 0 0 6h1v2a1 1 0 0 0 2 0v-2h6v2a1 1 0 0 0 2 0v-2h1a3 3 0 0 0 0-6h-3V5a3 3 0 0 0-3-3z" />
-            </svg>
+            
+<svg
+  width="22"
+  height="22"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="white"
+  strokeWidth="2"
+  strokeLinecap="round"
+  strokeLinejoin="round"
+>
+  <path d="M12 3C9.5 1.5 5 2.5 4 7c-1 4.5 1.5 7.5 2.5 11 .7 2.3 2 3 3 1.5L12 15l2.5 4.5c1 1.5 2.3.8 3-1.5C18.5 14.5 21 11.5 20 7c-1-4.5-5.5-5.5-8-4Z" />
+</svg>
+
           </div>
 
           <h1 style={{ color: "white", fontSize: 28, fontWeight: 700, margin: "0 0 10px", fontFamily: "'DM Sans', sans-serif" }}>

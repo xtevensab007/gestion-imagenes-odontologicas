@@ -7,7 +7,7 @@ import {
 } from "../services/atencionesService";
 import { listarImagenes } from "../services/imagenesService";
 import { obtenerMiProfesional } from "../services/profesionalesService";
-
+import { listarCie10 } from "../services/cie10Service";
 interface DashboardProps {
   onNavigate: (page: string, extra?: any) => void;
 }
@@ -43,7 +43,43 @@ const [totalImagenes, setTotalImagenes] = useState(0);
 const [cargando, setCargando] = useState(true);
 const [error, setError] = useState("");
 const [nombreUsuario, setNombreUsuario] = useState("");
+const [descripcionesCie, setDescripcionesCie] = useState<Record<string, string>>({});
+useEffect(() => {
+  const cargarDescripcionesCie = async () => {
+    const codigos = [
+      ...new Set(
+        atenciones
+          .map(a => a.diagnostico_hospitalario)
+          .filter((codigo): codigo is string => Boolean(codigo))
+      )
+    ];
 
+    const resultados = await Promise.all(
+      codigos.map(async codigo => {
+        try {
+          const resultado = await listarCie10(codigo, false);
+
+          return {
+            codigo,
+            descripcion: resultado.items?.[0]?.descripcion_4 || ""
+          };
+        } catch {
+          return { codigo, descripcion: "" };
+        }
+      })
+    );
+
+    setDescripcionesCie(
+      Object.fromEntries(
+        resultados.map(r => [r.codigo, r.descripcion])
+      )
+    );
+  };
+
+  if (atenciones.length > 0) {
+    cargarDescripcionesCie();
+  }
+}, [atenciones]);
 
 useEffect(() => {
   const cargarDashboard = async () => {
@@ -291,14 +327,29 @@ sub="Tipos de diagnósticos bucales"
       </td>
 
       <td>
-        <span style={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: "#374151"
-        }}>
-          {a.diagnostico_hospitalario || "Sin diagnóstico"}
-        </span>
-      </td>
+  {a.diagnostico_hospitalario ? (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <span style={{
+        fontSize: 12,
+        fontWeight: 700,
+        color: "#1a3557"
+      }}>
+        {a.diagnostico_hospitalario}
+      </span>
+
+      <span style={{
+        fontSize: 11,
+        color: "#6b7280"
+      }}>
+        {descripcionesCie[a.diagnostico_hospitalario] || "Consultando descripción..."}
+      </span>
+    </div>
+  ) : (
+    <span style={{ fontSize: 12, color: "#9ca3af" }}>
+      Sin diagnóstico
+    </span>
+  )}
+</td>
 
       <td>
         <div style={{
