@@ -18,7 +18,10 @@ export interface AtencionListado {
   diagnosticos_bucales: string[];
   total_imagenes: number;
 }
-
+export interface AtencionDetalle {
+  id_atencion: string;
+  observaciones: string | null;
+}
 export interface RespuestaAtenciones {
   items: AtencionListado[];
   total: number;
@@ -96,7 +99,7 @@ export function crearAtencion(datos: NuevaAtencion) {
 
 // Consultar detalle de una atención
 export function obtenerAtencion(id: string) {
-  return apiRequest(`/atenciones/${id}`);
+  return apiRequest<AtencionDetalle>(`/atenciones/${id}`);
 }
 
 export interface RespuestaCrearAtencion {

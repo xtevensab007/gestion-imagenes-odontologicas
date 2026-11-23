@@ -3,8 +3,12 @@ import { listarImagenes, subirImagen } from "../services/imagenesService";
 import type { ImagenClinica } from "../services/imagenesService";
 import { listarPacientes } from "../services/pacientesService";
 import type { PacienteBackend } from "../services/pacientesService";
-import { listarAtenciones } from "../services/atencionesService";
+import {
+  listarAtenciones,
+  obtenerAtencion
+} from "../services/atencionesService";
 import type { AtencionListado } from "../services/atencionesService";
+
 
 interface Props {
   initialPatientId?: string;
@@ -19,90 +23,171 @@ export default function Images({ initialPatientId, onNavigate }: Props) {
   const [imagenes, setImagenes] = useState<ImagenClinica[]>([]);
   const [pacientes, setPacientes] = useState<PacienteBackend[]>([]);
   const [selectedImage, setSelectedImage] = useState<ImagenClinica | null>(null);
-
+  const [observacionesAtencion, setObservacionesAtencion] = useState("");
   const [pagina, setPagina] = useState(1);
   const [totalImagenes, setTotalImagenes] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState("");
   const [mostrarModalSubida, setMostrarModalSubida] = useState(false);
-const [pacienteSubida, setPacienteSubida] = useState("");
-const [atencionSubida, setAtencionSubida] = useState("");
-const [archivosSubida, setArchivosSubida] = useState<File[]>([]);
-const [atencionesPaciente, setAtencionesPaciente] = useState<AtencionListado[]>([]);
-const [subiendo, setSubiendo] = useState(false);
-const [errorSubida, setErrorSubida] = useState("");
-const [recargar, setRecargar] = useState(0);
-const inputArchivosRef = useRef<HTMLInputElement>(null);
+  const [pacienteSubida, setPacienteSubida] = useState("");
+  const [atencionSubida, setAtencionSubida] = useState("");
+  const [archivosSubida, setArchivosSubida] = useState<File[]>([]);
+  const [atencionesPaciente, setAtencionesPaciente] = useState<AtencionListado[]>([]);
+  const [subiendo, setSubiendo] = useState(false);
+  const [errorSubida, setErrorSubida] = useState("");
+  const [recargar, setRecargar] = useState(0);
+  const inputArchivosRef = useRef<HTMLInputElement>(null);
+  const [atenciones, setAtenciones] = useState<AtencionListado[]>([]);
 
-async function handleSubirImagenes() {
-  if (!pacienteSubida) {
-    setErrorSubida("Selecciona un paciente.");
-    return;
-  }
-
-  if (archivosSubida.length === 0) {
-    setErrorSubida("Selecciona al menos una imagen.");
-    return;
-  }
-
-  try {
-    setSubiendo(true);
-    setErrorSubida("");
-
-    for (const archivo of archivosSubida) {
-      await subirImagen(
-        archivo,
-        pacienteSubida,
-        atencionSubida || undefined
-      );
-
-      setArchivosSubida(prev =>
-        prev.filter(item => item !== archivo)
-      );
+  async function handleSubirImagenes() {
+    if (!pacienteSubida) {
+      setErrorSubida("Selecciona un paciente.");
+      return;
     }
 
-    setMostrarModalSubida(false);
-    setPacienteSubida("");
-    setAtencionSubida("");
-    setArchivosSubida([]);
-    setPagina(1);
-    setRecargar(prev => prev + 1);
-
-  } catch (error) {
-    setErrorSubida(
-      error instanceof Error
-        ? error.message
-        : "No fue posible subir las imágenes."
-    );
-  } finally {
-    setSubiendo(false);
-  }
-}
-
-useEffect(() => {
-  async function cargarAtencionesPaciente() {
-    if (!pacienteSubida) {
-      setAtencionesPaciente([]);
-      setAtencionSubida("");
+    if (archivosSubida.length === 0) {
+      setErrorSubida("Selecciona al menos una imagen.");
       return;
     }
 
     try {
-      const respuesta = await listarAtenciones({
-        id_paciente: pacienteSubida,
-        page: 1,
-        page_size: 100
-      });
+      setSubiendo(true);
+      setErrorSubida("");
 
-      setAtencionesPaciente(respuesta.items);
+      for (const archivo of archivosSubida) {
+        await subirImagen(
+          archivo,
+          pacienteSubida,
+          atencionSubida || undefined
+        );
+
+        setArchivosSubida(prev =>
+          prev.filter(item => item !== archivo)
+        );
+      }
+
+      setMostrarModalSubida(false);
+      setPacienteSubida("");
+      setAtencionSubida("");
+      setArchivosSubida([]);
+      setPagina(1);
+      setRecargar(prev => prev + 1);
+
     } catch (error) {
-      console.error("Error al cargar atenciones:", error);
-      setAtencionesPaciente([]);
+      setErrorSubida(
+        error instanceof Error
+          ? error.message
+          : "No fue posible subir las imágenes."
+      );
+    } finally {
+      setSubiendo(false);
     }
   }
 
-  cargarAtencionesPaciente();
-}, [pacienteSubida]);
+  useEffect(() => {
+    async function cargarObservaciones() {
+      setObservacionesAtencion("");
+
+      if (!selectedImage?.id_atencion) {
+        return;
+      }
+
+      try {
+        const respuesta = await obtenerAtencion(
+          selectedImage.id_atencion
+        );
+
+        setObservacionesAtencion(
+          respuesta.observaciones || ""
+        );
+      } catch (error) {
+        console.error("Error al cargar observaciones:", error);
+        setObservacionesAtencion("");
+      }
+    }
+
+    cargarObservaciones();
+  }, [selectedImage]);
+
+  useEffect(() => {
+    async function cargarAtenciones() {
+      try {
+        const primeraPagina = await listarAtenciones({
+          page: 1,
+          page_size: 100
+        });
+
+        let todasLasAtenciones = [...primeraPagina.items];
+
+        const totalPaginas = Math.ceil(primeraPagina.total / 100);
+
+        for (let pagina = 2; pagina <= totalPaginas; pagina++) {
+          const respuesta = await listarAtenciones({
+            page: pagina,
+            page_size: 100
+          });
+
+          todasLasAtenciones = [
+            ...todasLasAtenciones,
+            ...respuesta.items
+          ];
+        }
+
+        setAtenciones(todasLasAtenciones);
+      } catch (error) {
+        console.error("Error al cargar atenciones:", error);
+      }
+    }
+
+    cargarAtenciones();
+  }, []);
+
+  const obtenerDiagnostico = (imagen: ImagenClinica) => {
+    if (imagen.diagnostico?.trim()) {
+      return imagen.diagnostico;
+    }
+
+    if (!imagen.id_atencion) {
+      return "Sin diagnóstico";
+    }
+
+    const atencion = atenciones.find(
+      a => a.id_atencion === imagen.id_atencion
+    );
+
+    if (!atencion || !atencion.diagnosticos_bucales?.length) {
+      return "Sin diagnóstico";
+    }
+
+    return atencion.diagnosticos_bucales
+      .filter(d => d?.trim())
+      .join(", ") || "Sin diagnóstico";
+  };
+
+  useEffect(() => {
+    async function cargarAtencionesPaciente() {
+      if (!pacienteSubida) {
+        setAtencionesPaciente([]);
+        setAtencionSubida("");
+        return;
+      }
+
+      try {
+        const respuesta = await listarAtenciones({
+          id_paciente: pacienteSubida,
+          page: 1,
+          page_size: 100
+        });
+
+        setAtencionesPaciente(respuesta.items);
+      } catch (error) {
+        console.error("Error al cargar atenciones:", error);
+        setAtencionesPaciente([]);
+      }
+    }
+
+    cargarAtencionesPaciente();
+  }, [pacienteSubida]);
 
   useEffect(() => {
     async function cargarImagenes() {
@@ -161,12 +246,12 @@ useEffect(() => {
           <p className="page-subtitle">Galería de imágenes odontológicas asociadas a pacientes y diagnósticos</p>
         </div>
         <button
-  className="btn-primary"
-  onClick={() => {
-    setErrorSubida("");
-    setMostrarModalSubida(true);
-  }}
->
+          className="btn-primary"
+          onClick={() => {
+            setErrorSubida("");
+            setMostrarModalSubida(true);
+          }}
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
           Subir imagen
         </button>
@@ -264,7 +349,7 @@ useEffect(() => {
                 justifyContent: "space-between"
               }}>
                 <span className="badge badge-gray" style={{ fontSize: 11 }}>
-                  {img.diagnostico || "Sin diagnóstico"}
+                  {obtenerDiagnostico(img)}
                 </span>
 
                 <span style={{ fontSize: 11, color: "#9ca3af" }}>
@@ -342,196 +427,196 @@ useEffect(() => {
         </button>
       </div>
 
-{/* Modal para subir imágenes */}
-{mostrarModalSubida && (
-  <div
-    className="modal-overlay"
-    onClick={() => {
-      if (!subiendo) setMostrarModalSubida(false);
-    }}
-  >
-    <div
-      className="modal-content"
-      style={{ width: 520, padding: 28 }}
-      onClick={e => e.stopPropagation()}
-    >
-      <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 24
-      }}>
-        <h2 style={{
-          margin: 0,
-          fontSize: 18,
-          color: "#1a3557"
-        }}>
-          Subir imágenes clínicas
-        </h2>
-
-        <button
-          onClick={() => setMostrarModalSubida(false)}
-          disabled={subiendo}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "#9ca3af"
+      {/* Modal para subir imágenes */}
+      {mostrarModalSubida && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!subiendo) setMostrarModalSubida(false);
           }}
         >
-          ✕
-        </button>
-      </div>
-
-      <div style={{ marginBottom: 18 }}>
-        <label style={{
-          display: "block",
-          marginBottom: 8,
-          fontSize: 13,
-          fontWeight: 600
-        }}>
-          Paciente *
-        </label>
-
-        <select
-          className="select-field"
-          style={{ width: "100%" }}
-          value={pacienteSubida}
-          onChange={e => setPacienteSubida(e.target.value)}
-          disabled={subiendo}
-        >
-          <option value="">Seleccionar paciente</option>
-          {pacientes.map(p => (
-            <option key={p.id_paciente} value={p.id_paciente}>
-              {p.nombre}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div style={{ marginBottom: 18 }}>
-        <label style={{
-          display: "block",
-          marginBottom: 8,
-          fontSize: 13,
-          fontWeight: 600
-        }}>
-          Atención (opcional)
-        </label>
-
-        <select
-          className="select-field"
-          style={{ width: "100%" }}
-          value={atencionSubida}
-          onChange={e => setAtencionSubida(e.target.value)}
-          disabled={!pacienteSubida || subiendo}
-        >
-          <option value="">Sin atención asociada</option>
-
-          {atencionesPaciente.map(a => (
-            <option key={a.id_atencion} value={a.id_atencion}>
-              {a.codigo_atencion} - {a.fecha_atencion}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div style={{ marginBottom: 18 }}>
-        <input
-          ref={inputArchivosRef}
-          type="file"
-          accept="image/*"
-          multiple
-          style={{ display: "none" }}
-          onChange={e => {
-            const nuevos = Array.from(e.target.files || []);
-            setArchivosSubida(prev => [...prev, ...nuevos]);
-            e.target.value = "";
-          }}
-        />
-
-        <button
-          type="button"
-          className="btn-secondary"
-          style={{ width: "100%", justifyContent: "center" }}
-          onClick={() => inputArchivosRef.current?.click()}
-          disabled={subiendo}
-        >
-          Seleccionar imágenes
-        </button>
-
-        {archivosSubida.map((archivo, indice) => (
           <div
-            key={`${archivo.name}-${indice}`}
-            style={{
+            className="modal-content"
+            style={{ width: 520, padding: 28 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              padding: "8px 10px",
-              marginTop: 8,
-              background: "#f9fafb",
-              borderRadius: 6,
-              fontSize: 12
-            }}
-          >
-            <span style={{
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap"
+              marginBottom: 24
             }}>
-              {archivo.name}
-            </span>
+              <h2 style={{
+                margin: 0,
+                fontSize: 18,
+                color: "#1a3557"
+              }}>
+                Subir imágenes clínicas
+              </h2>
 
-            <button
-              type="button"
-              disabled={subiendo}
-              onClick={() => setArchivosSubida(prev =>
-                prev.filter((_, i) => i !== indice)
-              )}
-              style={{
-                border: "none",
-                background: "none",
-                color: "#dc2626",
-                cursor: "pointer"
-              }}
-            >
-              Quitar
-            </button>
+              <button
+                onClick={() => setMostrarModalSubida(false)}
+                disabled={subiendo}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#9ca3af"
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ marginBottom: 18 }}>
+              <label style={{
+                display: "block",
+                marginBottom: 8,
+                fontSize: 13,
+                fontWeight: 600
+              }}>
+                Paciente *
+              </label>
+
+              <select
+                className="select-field"
+                style={{ width: "100%" }}
+                value={pacienteSubida}
+                onChange={e => setPacienteSubida(e.target.value)}
+                disabled={subiendo}
+              >
+                <option value="">Seleccionar paciente</option>
+                {pacientes.map(p => (
+                  <option key={p.id_paciente} value={p.id_paciente}>
+                    {p.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: 18 }}>
+              <label style={{
+                display: "block",
+                marginBottom: 8,
+                fontSize: 13,
+                fontWeight: 600
+              }}>
+                Atención (opcional)
+              </label>
+
+              <select
+                className="select-field"
+                style={{ width: "100%" }}
+                value={atencionSubida}
+                onChange={e => setAtencionSubida(e.target.value)}
+                disabled={!pacienteSubida || subiendo}
+              >
+                <option value="">Sin atención asociada</option>
+
+                {atencionesPaciente.map(a => (
+                  <option key={a.id_atencion} value={a.id_atencion}>
+                    {a.codigo_atencion} - {a.fecha_atencion}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: 18 }}>
+              <input
+                ref={inputArchivosRef}
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: "none" }}
+                onChange={e => {
+                  const nuevos = Array.from(e.target.files || []);
+                  setArchivosSubida(prev => [...prev, ...nuevos]);
+                  e.target.value = "";
+                }}
+              />
+
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ width: "100%", justifyContent: "center" }}
+                onClick={() => inputArchivosRef.current?.click()}
+                disabled={subiendo}
+              >
+                Seleccionar imágenes
+              </button>
+
+              {archivosSubida.map((archivo, indice) => (
+                <div
+                  key={`${archivo.name}-${indice}`}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 10px",
+                    marginTop: 8,
+                    background: "#f9fafb",
+                    borderRadius: 6,
+                    fontSize: 12
+                  }}
+                >
+                  <span style={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap"
+                  }}>
+                    {archivo.name}
+                  </span>
+
+                  <button
+                    type="button"
+                    disabled={subiendo}
+                    onClick={() => setArchivosSubida(prev =>
+                      prev.filter((_, i) => i !== indice)
+                    )}
+                    style={{
+                      border: "none",
+                      background: "none",
+                      color: "#dc2626",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {errorSubida && (
+              <p style={{ color: "#dc2626", fontSize: 13 }}>
+                {errorSubida}
+              </p>
+            )}
+
+            <div style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 10,
+              marginTop: 24
+            }}>
+              <button
+                className="btn-secondary"
+                disabled={subiendo}
+                onClick={() => setMostrarModalSubida(false)}
+              >
+                Cancelar
+              </button>
+
+              <button
+                className="btn-primary"
+                disabled={subiendo}
+                onClick={handleSubirImagenes}
+              >
+                {subiendo ? "Subiendo..." : "Guardar imágenes"}
+              </button>
+            </div>
           </div>
-        ))}
-      </div>
-
-      {errorSubida && (
-        <p style={{ color: "#dc2626", fontSize: 13 }}>
-          {errorSubida}
-        </p>
+        </div>
       )}
-
-      <div style={{
-        display: "flex",
-        justifyContent: "flex-end",
-        gap: 10,
-        marginTop: 24
-      }}>
-        <button
-          className="btn-secondary"
-          disabled={subiendo}
-          onClick={() => setMostrarModalSubida(false)}
-        >
-          Cancelar
-        </button>
-
-        <button
-          className="btn-primary"
-          disabled={subiendo}
-          onClick={handleSubirImagenes}
-        >
-          {subiendo ? "Subiendo..." : "Guardar imágenes"}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
 
       {/* Image modal */}
       {selectedImage && (
@@ -567,18 +652,46 @@ useEffect(() => {
                   </div>
                 ))}
                 <div>
-                  <p style={{ margin: "0 0 6px", fontSize: 11, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>Diagnóstico</p>
-                  <p style={{ margin: "0 0 6px", fontSize: 11, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                    Diagnóstico
-                  </p>
+                  <div>
+                    <p style={{
+                      margin: "0 0 6px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#9ca3af",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em"
+                    }}>
+                      Diagnóstico
+                    </p>
+
+
+                  </div>
 
                   <span className="badge badge-gray" style={{ fontSize: 13, padding: "6px 14px" }}>
-                    🦷 {selectedImage.diagnostico || "Sin diagnóstico"}
+                    🦷 {obtenerDiagnostico(selectedImage)}
                   </span>
                 </div>
                 <div>
-                  <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>Observaciones</p>
+                  <p style={{
+                    margin: "0 0 6px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "#9ca3af",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em"
+                  }}>
+                    Observaciones
+                  </p>
 
+                  <p style={{
+                    margin: 0,
+                    fontSize: 13,
+                    color: "#1f2937",
+                    lineHeight: 1.6,
+                    whiteSpace: "pre-wrap"
+                  }}>
+                    {observacionesAtencion || "Sin observaciones"}
+                  </p>
                 </div>
               </div>
 
